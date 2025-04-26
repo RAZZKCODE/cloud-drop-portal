@@ -230,24 +230,3 @@ export const formatFileSize = (bytes: number): string => {
     return (bytes / 1073741824).toFixed(1) + ' GB';
   }
 };
-
-export const getUserFiles = async (userId: string): Promise<FileMetadata[]> => {
-  const { data, error } = await supabase
-    .from('file_metadata')
-    .select('*')
-    .eq('user_id', userId)
-    .order('upload_date', { ascending: false });
-
-  if (error) throw error;
-
-  return data.map(file => ({
-    id: file.id,
-    userId: file.user_id,
-    originalName: file.original_name,
-    fileType: file.file_type,
-    size: file.size,
-    uploadDate: new Date(file.upload_date),
-    shareUrl: file.share_url,
-    expiresAt: file.expires_at ? new Date(file.expires_at) : null
-  }));
-};
