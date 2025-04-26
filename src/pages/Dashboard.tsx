@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,12 +17,7 @@ const Dashboard = () => {
     
     setLoadingFiles(true);
     try {
-      // For demo purposes, since we're using mock authentication with non-UUID user IDs
-      // In a real app with Supabase auth, this would be an actual UUID
-      // We'll adapt for the demo by using a UUID-like format
-      // This is a temporary workaround - in production, you'd use real UUIDs from Supabase Auth
-      const mockUuid = "00000000-0000-0000-0000-000000000000"; // Using a placeholder UUID
-      const userFiles = await getUserFiles(mockUuid);
+      const userFiles = await getUserFiles(user.id);
       setFiles(userFiles);
     } catch (error) {
       console.error("Error fetching files:", error);

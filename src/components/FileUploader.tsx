@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadFile, FileMetadata } from "@/services/fileService";
@@ -82,9 +81,7 @@ export const FileUploader = ({ onFileUploaded }: FileUploaderProps) => {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      // For demo purposes, use a placeholder UUID instead of user.id
-      const mockUuid = "00000000-0000-0000-0000-000000000000"; // Using a placeholder UUID
-      const uploadedFile = await uploadFile(file, mockUuid, expiresIn !== "never" ? parseInt(expiresIn, 10) : null);
+      const uploadedFile = await uploadFile(file, user.id, expiresIn !== "never" ? parseInt(expiresIn, 10) : null);
       
       clearInterval(progressInterval);
       setProgress(100);
