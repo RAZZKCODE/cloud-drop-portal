@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadFile, FileMetadata } from "@/services/fileService";
@@ -55,7 +54,6 @@ export const FileUploader = ({ onFileUploaded }: FileUploaderProps) => {
   };
 
   const validateAndSetFile = (fileToValidate: File) => {
-    // Validate file size (max 50MB)
     const maxSize = 50 * 1024 * 1024; // 50MB in bytes
     if (fileToValidate.size > maxSize) {
       toast.error("File size exceeds the maximum limit of 50MB");
@@ -79,25 +77,11 @@ export const FileUploader = ({ onFileUploaded }: FileUploaderProps) => {
     setProgress(0);
 
     try {
-      // Simulate progress
       const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 300);
+        setProgress(prev => Math.min(prev + 10, 90));
+      }, 500);
 
-      // Convert expiresIn to days or null
-      let expirationDays: number | null = null;
-      if (expiresIn !== "never") {
-        expirationDays = parseInt(expiresIn, 10);
-      }
-
-      // Upload file to cloud storage
-      const uploadedFile = await uploadFile(file, user.id, expirationDays);
+      const uploadedFile = await uploadFile(file, user.id, expiresIn !== "never" ? parseInt(expiresIn, 10) : null);
       
       clearInterval(progressInterval);
       setProgress(100);
@@ -105,7 +89,6 @@ export const FileUploader = ({ onFileUploaded }: FileUploaderProps) => {
       toast.success("File uploaded successfully!");
       onFileUploaded(uploadedFile);
       
-      // Reset form after short delay
       setTimeout(() => {
         setFile(null);
         setProgress(0);

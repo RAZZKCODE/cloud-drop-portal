@@ -1,10 +1,9 @@
-
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export interface FileMetadata {
   id: string;
   userId: string;
-  fileName: string;
   originalName: string;
   fileType: string;
   size: number;
@@ -13,95 +12,126 @@ export interface FileMetadata {
   expiresAt: Date | null;
 }
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Mock database of files
-let mockFiles: FileMetadata[] = [
-  {
-    id: "file-1",
-    userId: "user-123",
-    fileName: "document-123456.pdf",
-    originalName: "Project Report.pdf",
-    fileType: "application/pdf",
-    size: 2500000, // 2.5MB
-    uploadDate: new Date(Date.now() - 86400000 * 2), // 2 days ago
-    shareUrl: "https://clouddrop.example/share/document-123456",
-    expiresAt: new Date(Date.now() + 86400000 * 5) // 5 days from now
-  },
-  {
-    id: "file-2",
-    userId: "user-123",
-    fileName: "image-789012.jpg",
-    originalName: "Vacation Photo.jpg",
-    fileType: "image/jpeg",
-    size: 3800000, // 3.8MB
-    uploadDate: new Date(Date.now() - 86400000), // 1 day ago
-    shareUrl: "https://clouddrop.example/share/image-789012",
-    expiresAt: null // Never expires
-  }
-];
-
 export const uploadFile = async (
   file: File,
   userId: string,
-  expiresIn: number | null = null // null means never expire, otherwise days
+  expiresIn: number | null = null
 ): Promise<FileMetadata> => {
   // Validate file size (max 50MB)
-  const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+  const maxSize = 50 * 1024 * 1024;
   if (file.size > maxSize) {
     throw new Error("File size exceeds the maximum limit of 50MB");
   }
 
-  // Simulate uploading to cloud storage
-  await delay(file.size / 100000); // Simulate longer uploads for larger files
+  // Generate a unique file path
+  const fileExt = file.name.split('.').pop();
+  const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-  // Generate a unique file ID and "cloud" filename
-  const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-  const cloudFileName = `${file.name.split(".")[0].toLowerCase()}-${fileId}.${file.name.split(".").pop()}`;
-  
-  // Calculate expiration date if provided
-  let expiresAt = null;
-  if (expiresIn !== null) {
-    expiresAt = new Date(Date.now() + expiresIn * 86400000);
+  try {
+    // Upload file to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('file_uploads')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    // Generate public URL
+    const { data: urlData } = await supabase.storage
+      .from('file_uploads')
+      .createSignedUrl(filePath, expiresIn ? expiresIn * 24 * 60 * 60 : 365 * 24 * 60 * 60);
+
+    if (!urlData?.signedUrl) throw new Error("Failed to generate share URL");
+
+    // Insert metadata into the database
+    const { data: metadataData, error: metadataError } = await supabase
+      .from('file_metadata')
+      .insert({
+        user_id: userId,
+        storage_path: filePath,
+        original_name: file.name,
+        file_type: file.type,
+        size: file.size,
+        share_url: urlData.signedUrl,
+        expires_at: expiresIn ? new Date(Date.now() + expiresIn * 86400000) : null
+      })
+      .select()
+      .single();
+
+    if (metadataError) throw metadataError;
+
+    return {
+      id: metadataData.id,
+      userId: metadataData.user_id,
+      originalName: metadataData.original_name,
+      fileType: metadataData.file_type,
+      size: metadataData.size,
+      uploadDate: new Date(metadataData.upload_date),
+      shareUrl: metadataData.share_url,
+      expiresAt: metadataData.expires_at ? new Date(metadataData.expires_at) : null
+    };
+  } catch (error) {
+    console.error('Upload error:', error);
+    throw error;
   }
-
-  // Create file metadata
-  const newFile: FileMetadata = {
-    id: fileId,
-    userId,
-    fileName: cloudFileName,
-    originalName: file.name,
-    fileType: file.type,
-    size: file.size,
-    uploadDate: new Date(),
-    shareUrl: `https://clouddrop.example/share/${fileId}`,
-    expiresAt
-  };
-
-  // Add to our mock database
-  mockFiles.push(newFile);
-
-  return newFile;
 };
 
 export const getUserFiles = async (userId: string): Promise<FileMetadata[]> => {
-  // Simulate API delay
-  await delay(500);
-  
-  // Filter files by user ID and remove expired ones
-  return mockFiles
-    .filter(file => file.userId === userId)
-    .filter(file => !file.expiresAt || new Date(file.expiresAt) > new Date())
-    .sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()); // Sort newest first
+  const { data, error } = await supabase
+    .from('file_metadata')
+    .select('*')
+    .eq('user_id', userId)
+    .order('upload_date', { ascending: false });
+
+  if (error) throw error;
+
+  return data.map(file => ({
+    id: file.id,
+    userId: file.user_id,
+    originalName: file.original_name,
+    fileType: file.file_type,
+    size: file.size,
+    uploadDate: new Date(file.upload_date),
+    shareUrl: file.share_url,
+    expiresAt: file.expires_at ? new Date(file.expires_at) : null
+  }));
 };
 
 export const deleteFile = async (fileId: string, userId: string): Promise<boolean> => {
-  await delay(500);
-  
-  const initialLength = mockFiles.length;
-  mockFiles = mockFiles.filter(file => !(file.id === fileId && file.userId === userId));
-  
-  return mockFiles.length < initialLength;
+  try {
+    // Get the file metadata first
+    const { data: fileData, error: fetchError } = await supabase
+      .from('file_metadata')
+      .select('storage_path')
+      .eq('id', fileId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Delete the file from storage
+    const { error: storageError } = await supabase.storage
+      .from('file_uploads')
+      .remove([fileData.storage_path]);
+
+    if (storageError) throw storageError;
+
+    // Delete the metadata
+    const { error: deleteError } = await supabase
+      .from('file_metadata')
+      .delete()
+      .eq('id', fileId)
+      .eq('user_id', userId);
+
+    if (deleteError) throw deleteError;
+
+    return true;
+  } catch (error) {
+    console.error('Delete error:', error);
+    return false;
+  }
 };
 
 export const updateFileExpiration = async (
@@ -109,42 +139,78 @@ export const updateFileExpiration = async (
   userId: string,
   expiresIn: number | null
 ): Promise<FileMetadata | null> => {
-  await delay(300);
-  
-  const fileIndex = mockFiles.findIndex(file => file.id === fileId && file.userId === userId);
-  
-  if (fileIndex === -1) {
+  try {
+    const { data: fileData, error: fetchError } = await supabase
+      .from('file_metadata')
+      .select('*')
+      .eq('id', fileId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Generate new signed URL
+    const { data: urlData } = await supabase.storage
+      .from('file_uploads')
+      .createSignedUrl(fileData.storage_path, expiresIn ? expiresIn * 24 * 60 * 60 : 365 * 24 * 60 * 60);
+
+    if (!urlData?.signedUrl) throw new Error("Failed to generate new share URL");
+
+    const { data: updateData, error: updateError } = await supabase
+      .from('file_metadata')
+      .update({
+        share_url: urlData.signedUrl,
+        expires_at: expiresIn ? new Date(Date.now() + expiresIn * 86400000) : null
+      })
+      .eq('id', fileId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    return {
+      id: updateData.id,
+      userId: updateData.user_id,
+      originalName: updateData.original_name,
+      fileType: updateData.file_type,
+      size: updateData.size,
+      uploadDate: new Date(updateData.upload_date),
+      shareUrl: updateData.share_url,
+      expiresAt: updateData.expires_at ? new Date(updateData.expires_at) : null
+    };
+  } catch (error) {
+    console.error('Update error:', error);
     return null;
   }
-  
-  let expiresAt = null;
-  if (expiresIn !== null) {
-    expiresAt = new Date(Date.now() + expiresIn * 86400000);
-  }
-  
-  mockFiles[fileIndex] = {
-    ...mockFiles[fileIndex],
-    expiresAt
-  };
-  
-  return mockFiles[fileIndex];
 };
 
 export const getFileByShareId = async (fileId: string): Promise<FileMetadata | null> => {
-  await delay(300);
-  
-  const file = mockFiles.find(file => file.id === fileId);
-  
-  if (!file) {
+  try {
+    const { data: fileData, error: fetchError } = await supabase
+      .from('file_metadata')
+      .select('*')
+      .eq('id', fileId)
+      .single();
+
+    if (fetchError || !fileData) {
+      return null;
+    }
+
+    return {
+      id: fileData.id,
+      userId: fileData.user_id,
+      originalName: fileData.original_name,
+      fileType: fileData.file_type,
+      size: fileData.size,
+      uploadDate: new Date(fileData.upload_date),
+      shareUrl: fileData.share_url,
+      expiresAt: fileData.expires_at ? new Date(fileData.expires_at) : null
+    };
+  } catch (error) {
+    console.error("Error fetching shared file:", error);
     return null;
   }
-  
-  // Check if file has expired
-  if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
-    return null;
-  }
-  
-  return file;
 };
 
 export const formatFileSize = (bytes: number): string => {

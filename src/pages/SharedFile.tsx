@@ -22,11 +22,25 @@ const SharedFile = () => {
       }
 
       try {
-        const fileData = await getFileByShareId(fileId);
-        if (!fileData) {
+        const { data: fileData, error: fetchError } = await supabase
+          .from('file_metadata')
+          .select('*')
+          .eq('id', fileId)
+          .single();
+
+        if (fetchError || !fileData) {
           setError("This file doesn't exist or has expired");
         } else {
-          setFile(fileData);
+          setFile({
+            id: fileData.id,
+            userId: fileData.user_id,
+            originalName: fileData.original_name,
+            fileType: fileData.file_type,
+            size: fileData.size,
+            uploadDate: new Date(fileData.upload_date),
+            shareUrl: fileData.share_url,
+            expiresAt: fileData.expires_at ? new Date(fileData.expires_at) : null
+          });
         }
       } catch (err) {
         console.error("Error fetching shared file:", err);
@@ -39,10 +53,16 @@ const SharedFile = () => {
     fetchFile();
   }, [fileId]);
 
-  const handleDownload = () => {
-    // In a real app, this would trigger a file download
-    // For this mock, we'll just show a toast
-    toast.success("Download started");
+  const handleDownload = async () => {
+    if (!file) return;
+    
+    try {
+      window.location.href = file.shareUrl;
+      toast.success("Download started");
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("Failed to download file");
+    }
   };
 
   if (loading) {
