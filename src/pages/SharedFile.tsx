@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getFileByShareId, FileMetadata, formatFileSize } from "@/services/fileService";
@@ -6,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Download, FileIcon } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const SharedFile = () => {
   const { fileId } = useParams<{ fileId: string }>();

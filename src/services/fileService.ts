@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -45,7 +46,9 @@ export const uploadFile = async (
 
     if (!urlData?.signedUrl) throw new Error("Failed to generate share URL");
 
-    // Insert metadata into the database
+    // Insert metadata into the database - fixing the Date type issue
+    const expirationDate = expiresIn ? new Date(Date.now() + expiresIn * 86400000).toISOString() : null;
+    
     const { data: metadataData, error: metadataError } = await supabase
       .from('file_metadata')
       .insert({
@@ -55,7 +58,7 @@ export const uploadFile = async (
         file_type: file.type,
         size: file.size,
         share_url: urlData.signedUrl,
-        expires_at: expiresIn ? new Date(Date.now() + expiresIn * 86400000) : null
+        expires_at: expirationDate
       })
       .select()
       .single();
@@ -156,11 +159,14 @@ export const updateFileExpiration = async (
 
     if (!urlData?.signedUrl) throw new Error("Failed to generate new share URL");
 
+    // Fix the Date type issue by converting to ISO string
+    const expirationDate = expiresIn ? new Date(Date.now() + expiresIn * 86400000).toISOString() : null;
+
     const { data: updateData, error: updateError } = await supabase
       .from('file_metadata')
       .update({
         share_url: urlData.signedUrl,
-        expires_at: expiresIn ? new Date(Date.now() + expiresIn * 86400000) : null
+        expires_at: expirationDate
       })
       .eq('id', fileId)
       .eq('user_id', userId)
@@ -223,4 +229,25 @@ export const formatFileSize = (bytes: number): string => {
   } else {
     return (bytes / 1073741824).toFixed(1) + ' GB';
   }
+};
+
+export const getUserFiles = async (userId: string): Promise<FileMetadata[]> => {
+  const { data, error } = await supabase
+    .from('file_metadata')
+    .select('*')
+    .eq('user_id', userId)
+    .order('upload_date', { ascending: false });
+
+  if (error) throw error;
+
+  return data.map(file => ({
+    id: file.id,
+    userId: file.user_id,
+    originalName: file.original_name,
+    fileType: file.file_type,
+    size: file.size,
+    uploadDate: new Date(file.upload_date),
+    shareUrl: file.share_url,
+    expiresAt: file.expires_at ? new Date(file.expires_at) : null
+  }));
 };
