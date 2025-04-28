@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { X } from "lucide-react";
 
 const SignUp = () => {
   const { signup, isAuthenticated, isLoading } = useAuth();
@@ -44,7 +45,14 @@ const SignUp = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-sky-900 to-cyan-800 p-4">
-      <div className="w-full max-w-md animate-fade-in">
+      <div className="w-full max-w-md animate-fade-in relative">
+        <Link 
+          to="/" 
+          className="absolute right-0 -top-12 text-white hover:text-gray-200"
+        >
+          <X className="h-6 w-6" />
+        </Link>
+
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold text-white">CloudDrop</h1>
           <p className="mt-2 text-sky-200">Create your account</p>
