@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getFileByShareId, FileMetadata, formatFileSize } from "@/services/fileService";
+import { FileMetadata, formatFileSize, getFileByShareId } from "@/services/fileService";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Download, FileIcon } from "lucide-react";
+import { Download, Share2, Copy, FileIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const SharedFile = () => {
@@ -53,16 +54,17 @@ const SharedFile = () => {
     fetchFile();
   }, [fileId]);
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
+    if (!file?.shareUrl) return;
+    window.location.href = file.shareUrl;
+    toast.success("Download started");
+  };
+
+  const handleCopyLink = () => {
     if (!file) return;
-    
-    try {
-      window.location.href = file.shareUrl;
-      toast.success("Download started");
-    } catch (error) {
-      console.error("Download error:", error);
-      toast.error("Failed to download file");
-    }
+    const currentUrl = window.location.href;
+    navigator.clipboard.writeText(currentUrl);
+    toast.success("Link copied to clipboard");
   };
 
   if (loading) {
@@ -98,37 +100,80 @@ const SharedFile = () => {
             </CardFooter>
           </Card>
         ) : file ? (
-          <Card>
+          <Card className="backdrop-blur-sm bg-white/95">
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <FileIcon className="mr-2 h-6 w-6" />
-                <span className="truncate">{file.originalName}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Size:</span>
-                  <span>{formatFileSize(file.size)}</span>
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <FileIcon className="h-8 w-8 text-primary" />
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Type:</span>
-                  <span>{file.fileType.split('/')[1].toUpperCase()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Expires:</span>
-                  <span>
-                    {file.expiresAt 
-                      ? new Date(file.expiresAt).toLocaleDateString() 
-                      : "Never expires"}
-                  </span>
+                <div>
+                  <CardTitle className="text-xl break-all">{file.originalName}</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {formatFileSize(file.size)}
+                  </p>
                 </div>
               </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Type:</span>
+                  <span className="font-medium">{file.fileType.split('/')[1].toUpperCase()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Uploaded:</span>
+                  <span className="font-medium">
+                    {file.uploadDate.toLocaleDateString()}
+                  </span>
+                </div>
+                {file.expiresAt && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Expires:</span>
+                    <span className="font-medium">
+                      {file.expiresAt.toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+              </div>
             </CardContent>
-            <CardFooter>
-              <Button onClick={handleDownload} className="w-full">
-                <Download className="mr-2 h-4 w-4" /> Download File
+
+            <CardFooter className="flex flex-col space-y-2">
+              <Button 
+                onClick={handleDownload} 
+                className="w-full"
+                size="lg"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Download File
               </Button>
+              <div className="flex gap-2 w-full">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleCopyLink}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copy Link
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({
+                        title: file.originalName,
+                        url: window.location.href,
+                      }).catch(console.error);
+                    } else {
+                      handleCopyLink();
+                    }
+                  }}
+                >
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </Button>
+              </div>
             </CardFooter>
           </Card>
         ) : null}
