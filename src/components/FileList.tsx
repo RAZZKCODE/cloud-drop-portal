@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { Copy, Download, MoreVertical, Trash, Clock, Link as LinkIcon } from "lucide-react";
+import { Copy, Download, MoreVertical, Trash, Clock, Link as LinkIcon, FileIcon } from "lucide-react";
 
 interface FileListProps {
   files: FileMetadata[];
@@ -176,14 +176,18 @@ export const FileList = ({ files, loading, onFileDeleted, onFileUpdated }: FileL
     });
   };
 
+  const isImageFile = (fileType: string) => {
+    return fileType.startsWith('image/');
+  };
+
   return (
     <>
       <div className="space-y-4">
         {files.map((file) => (
-          <Card key={file.id} className="link-card">
+          <Card key={file.id} className="link-card overflow-hidden">
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
-                <div className="space-y-1">
+                <div className="space-y-1 flex-1">
                   <CardTitle className="truncate pr-8">{file.originalName}</CardTitle>
                   <CardDescription>
                     Uploaded on {formatDate(file.uploadDate)}
@@ -217,18 +221,30 @@ export const FileList = ({ files, loading, onFileDeleted, onFileUpdated }: FileL
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Size: </span>
-                  <span>{formatFileSize(file.size)}</span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Expires: </span>
-                  <span>
-                    {file.expiresAt
-                      ? formatDate(file.expiresAt)
-                      : "Never"}
-                  </span>
+              <div className="flex flex-col gap-4">
+                {isImageFile(file.fileType) && (
+                  <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted">
+                    <img 
+                      src={file.shareUrl} 
+                      alt={file.originalName}
+                      className="object-contain w-full h-full"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Size: </span>
+                    <span>{formatFileSize(file.size)}</span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Expires: </span>
+                    <span>
+                      {file.expiresAt
+                        ? formatDate(file.expiresAt)
+                        : "Never"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -241,7 +257,11 @@ export const FileList = ({ files, loading, onFileDeleted, onFileUpdated }: FileL
               >
                 <LinkIcon className="mr-2 h-4 w-4" /> Copy Link
               </Button>
-              <Button size="sm" className="flex-1">
+              <Button 
+                size="sm" 
+                className="flex-1"
+                onClick={() => window.open(file.shareUrl, '_blank')}
+              >
                 <Download className="mr-2 h-4 w-4" /> Download
               </Button>
             </CardFooter>
