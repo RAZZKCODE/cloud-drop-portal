@@ -16,6 +16,23 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Get user's name from metadata or use email as fallback
+  const getUserName = () => {
+    if (user?.user_metadata?.name) {
+      return user.user_metadata.name;
+    }
+    // Fallback to first part of email or generic "User"
+    return user?.email?.split('@')[0] || "User";
+  };
+
+  // Get first character for the avatar
+  const getInitial = () => {
+    if (user?.user_metadata?.name) {
+      return user.user_metadata.name.charAt(0).toUpperCase();
+    }
+    return user?.email?.charAt(0).toUpperCase() || "U";
+  };
+
   const handleLogout = () => {
     logout();
     navigate("/");
@@ -46,17 +63,17 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white">
-                      {user?.name?.charAt(0) || "U"}
+                      {getInitial()}
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <div className="flex items-center justify-start gap-2 p-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white">
-                      {user?.name?.charAt(0) || "U"}
+                      {getInitial()}
                     </div>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user?.name}</p>
+                      <p className="text-sm font-medium leading-none">{getUserName()}</p>
                       <p className="text-xs leading-none text-muted-foreground">
                         {user?.email}
                       </p>
@@ -94,10 +111,10 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 <div className="border-t border-gray-100 pt-3">
                   <div className="flex items-center px-3 py-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white">
-                      {user?.name?.charAt(0) || "U"}
+                      {getInitial()}
                     </div>
                     <div className="ml-3">
-                      <p className="text-sm font-medium">{user?.name}</p>
+                      <p className="text-sm font-medium">{getUserName()}</p>
                       <p className="text-xs text-muted-foreground">{user?.email}</p>
                     </div>
                   </div>
